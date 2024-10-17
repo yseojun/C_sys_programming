@@ -41,10 +41,32 @@ void __wrap_free(void *ptr) {
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>  // write 함수를 위해 추가
+#include <dlfcn.h>
+
+static void *(*mallocp)(size_t size) = NULL;
+static void *(*freep)(size_t size) = NULL;
+
+static unsigned long n_malloc = 0;
+static unsigned long n_free = 0;
+
+__attribute__((constructor))
+void __init(void)
+{
+  fprintf(stderr, "%s", "library interpositioning loaded\n");
+}
+
+__attribute((destructor))
+void fini(void)
+{
+  fprintf(stderr, "%s", "library interpositioning unloded\n");
+  fprintf(stderr, "%s %ld\n", "malloc called\n", n_malloc);
+  fprintf(stderr, "%s %ld\n", "free called\n", n_free);
+}
 
 /* malloc wrapper function */
 void *malloc(size_t size) {
-  void *(*mallocp)(size_t size);
+  // void *(*mallocp)(size_t size);
   char *error;
 
   mallocp = dlsym(RTLD_NEXT, "malloc"); /* Get addr of libc malloc */
@@ -53,7 +75,13 @@ void *malloc(size_t size) {
     exit(1);
   }
   char *ptr = mallocp(size); /* Call libc malloc */
-  printf("malloc(%d) = %p\n", (int)size, ptr);
+  // printf("malloc(%d) = %p\n", (int)size, ptr);
+  char buf[80];
+  int len = snprintf(buf, sizeof(buf), "malloc(%d) = %p\n", (int)size, ptr);
+  write(1, buf, len);
+
+  n_malloc++;
+
   return ptr;
 }
 
@@ -71,6 +99,9 @@ void free(void *ptr) {
     exit(1);
   }
   freep(ptr); /* Call libc free */
-  printf("free(%p)\n", ptr);
+  // printf("free(%p)\n", ptr);
+  char buf[80];
+  int len = snprintf(buf, sizeof(buf), "free(%p)\n", ptr);
+  write(1, buf, len);
 }
 #endif
